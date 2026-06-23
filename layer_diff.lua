@@ -71,7 +71,7 @@ dlg:separator()
 dlg:combobox {
   id      = "mode",
   label   = "Compare by:",
-  option  = "Shape (alpha)",
+  option  = "Color (exact pixels)",
   options = { "Shape (alpha)", "Color (exact pixels)" },
 }
 dlg:combobox {
