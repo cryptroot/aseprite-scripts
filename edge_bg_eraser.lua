@@ -72,6 +72,24 @@ dlg:check {
   text     = "Erase the whole scanline",
   selected = true,
 }
+dlg:separator { text = "Region (sprite coordinates)" }
+
+-- Default the region to the active selection (if any), otherwise the whole sprite.
+local sel        = sprite.selection
+local hasSel     = sel and not sel.isEmpty
+local defBounds  = hasSel and sel.bounds or Rectangle(0, 0, sprite.width, sprite.height)
+
+dlg:check {
+  id       = "useSelection",
+  label    = "Limit to region:",
+  text     = "Restrict scanline start/end",
+  selected = hasSel,
+}
+dlg:number { id = "rx", label = "X:",      text = tostring(defBounds.x),      decimals = 0 }
+dlg:number { id = "ry", label = "Y:",      text = tostring(defBounds.y),      decimals = 0 }
+dlg:newrow()
+dlg:number { id = "rw", label = "Width:",  text = tostring(defBounds.width),  decimals = 0 }
+dlg:number { id = "rh", label = "Height:", text = tostring(defBounds.height), decimals = 0 }
 dlg:separator()
 dlg:button { id = "ok",     text = "Erase", focus = true }
 dlg:button { id = "cancel", text = "Cancel" }
@@ -100,6 +118,31 @@ local outImage    = srcImage:clone()     -- write erased pixels here
 local w           = srcImage.width
 local h           = srcImage.height
 local transparent = app.pixelColor.rgba(0, 0, 0, 0)
+
+-- ── Region bounds (in image/cel coordinates) ────────────────────────────────
+-- Sweeps are confined to this rectangle: it limits both which scanlines run and
+-- where each scanline starts and ends. This lets you, e.g., start the "top"
+-- sweep half-way down the image instead of at the very top.
+local ix0, iy0, ix1, iy1 = 0, 0, w - 1, h - 1
+if data.useSelection then
+  -- Convert the sprite-space region to image space (cel-relative) and clamp.
+  local rx0 = math.floor(data.rx) - cel.position.x
+  local ry0 = math.floor(data.ry) - cel.position.y
+  local rx1 = rx0 + math.floor(data.rw) - 1
+  local ry1 = ry0 + math.floor(data.rh) - 1
+  if rx0 > ix0 then ix0 = rx0 end
+  if ry0 > iy0 then iy0 = ry0 end
+  if rx1 < ix1 then ix1 = rx1 end
+  if ry1 < iy1 then iy1 = ry1 end
+end
+
+if ix0 > ix1 or iy0 > iy1 then
+  app.alert("The region does not overlap the active cel. Nothing to erase.")
+  return
+end
+
+local regionW = ix1 - ix0 + 1
+local regionH = iy1 - iy0 + 1
 
 -- A pixel is an outline "edge" when it is sufficiently opaque and every color
 -- channel is dark (so the whole pixel is near black).
@@ -146,18 +189,18 @@ local function sweepLine(sx, sy, dx, dy, count)
   end
 end
 
--- ── Sweep the requested sides ───────────────────────────────────────────────
+-- ── Sweep the requested sides (confined to the region) ──────────────────────
 if data.left then
-  for y = 0, h - 1 do sweepLine(0, y, 1, 0, w) end
+  for y = iy0, iy1 do sweepLine(ix0, y, 1, 0, regionW) end
 end
 if data.right then
-  for y = 0, h - 1 do sweepLine(w - 1, y, -1, 0, w) end
+  for y = iy0, iy1 do sweepLine(ix1, y, -1, 0, regionW) end
 end
 if data.top then
-  for x = 0, w - 1 do sweepLine(x, 0, 0, 1, h) end
+  for x = ix0, ix1 do sweepLine(x, iy0, 0, 1, regionH) end
 end
 if data.bottom then
-  for x = 0, w - 1 do sweepLine(x, h - 1, 0, -1, h) end
+  for x = ix0, ix1 do sweepLine(x, iy1, 0, -1, regionH) end
 end
 
 if erased == 0 then
