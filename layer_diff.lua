@@ -86,6 +86,13 @@ dlg:color {
   color = Color{ r = 255, g = 0, b = 255, a = 255 },
 }
 dlg:separator()
+dlg:check {
+  id       = "invert",
+  label    = "Invert diff:",
+  text     = "Keep matching pixels instead",
+  selected = false,
+}
+dlg:separator()
 dlg:button { id = "ok",     text = "Apply", focus = true }
 dlg:button { id = "cancel", text = "Cancel" }
 
@@ -105,6 +112,7 @@ local layerB = layerList[idxB]
 
 local byColor      = data.mode == "Color (exact pixels)"
 local useHighlight = data.result == "Highlight color"
+local invert       = data.invert
 
 -- ── Render each layer's active-frame cel onto a sprite-sized canvas ─────────
 local spW, spH = sprite.width, sprite.height
@@ -148,6 +156,9 @@ for y = 0, spH - 1 do
       differs  = aOpaque ~= bOpaque
       sourcePV = aOpaque and av or bv
     end
+
+    -- Invert keeps the pixels that match instead of the ones that differ.
+    if invert then differs = not differs end
 
     if differs then
       out:drawPixel(x, y, useHighlight and highlightPV or sourcePV)
